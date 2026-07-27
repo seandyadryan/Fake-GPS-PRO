@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <!-- Outer circle -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M100,20C55.8,20 20,55.8 20,100s35.8,80 80,80 80,-35.8 80,-80 -35.8,-80 -80,-80zM100,170c-38.6,0 -70,-31.4 -70,-70s31.4,-70 70,-70 70,31.4 70,70 -31.4,70 -70,70z"/>
+    <!-- GPS Pin -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M100,40c-22.1,0 -40,17.9 -40,40 0,30 40,70 40,70s40,-40 40,-70c0,-22.1 -17.9,-40 -40,-40zM100,95c-8.3,0 -15,-6.7 -15,-15s6.7,-15 15,-15 15,6.7 15,15 -6.7,15 -15,15z"/>
+    <!-- Inner dot -->
+    <path
+        android:fillColor="#FF1A73E8"
+        android:pathData="M100,50c-16.6,0 -30,13.4 -30,30 0,22.5 30,52.5 30,52.5s30,-30 30,-52.5c0,-16.6 -13.4,-30 -30,-30zM100,82.5c-4.1,0 -7.5,-3.4 -7.5,-7.5s3.4,-7.5 7.5,-7.5 7.5,3.4 7.5,7.5 -3.4,7.5 -7.5,7.5z"/>
+    <!-- Arrow indicator -->
+    <path
+        android:fillColor="#FF1A73E8"
+        android:pathData="M130,120 L160,150 L150,160 L120,130 Z"/>
+</vector>

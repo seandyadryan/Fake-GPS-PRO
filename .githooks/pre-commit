@@ -1,0 +1,40 @@
+#!/bin/sh
+# Auto-increment version +1 on every commit
+# Works with pubspec.yaml in the format: version: x.y.z+build
+
+PUBSPEC="pubspec.yaml"
+if [ ! -f "$PUBSPEC" ]; then
+  echo "Error: pubspec.yaml not found!"
+  exit 1
+fi
+
+# Read current version line
+VERSION_LINE=$(grep -E '^version: ' "$PUBSPEC")
+if [ -z "$VERSION_LINE" ]; then
+  echo "Error: version not found in pubspec.yaml"
+  exit 1
+fi
+
+# Extract version part and build number
+VERSION_PART=$(echo "$VERSION_LINE" | sed 's/version: //' | sed 's/+.*//')
+BUILD_NUM=$(echo "$VERSION_LINE" | sed 's/.*+//')
+
+if [ -z "$BUILD_NUM" ] || [ "$BUILD_NUM" = "$VERSION_PART" ]; then
+  BUILD_NUM=0
+fi
+
+# Increment build number
+NEW_BUILD=$((BUILD_NUM + 1))
+NEW_VERSION="$VERSION_PART+$NEW_BUILD"
+
+# Replace in file
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  # macOS requires backup extension
+  sed -i '' "s/^version: .*/version: $NEW_VERSION/" "$PUBSPEC"
+else
+  sed -i "s/^version: .*/version: $NEW_VERSION/" "$PUBSPEC"
+fi
+
+git add "$PUBSPEC"
+
+echo "Version auto-incremented: $VERSION_PART+$BUILD_NUM -> $NEW_VERSION"
