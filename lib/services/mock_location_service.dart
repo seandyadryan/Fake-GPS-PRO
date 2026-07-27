@@ -11,17 +11,18 @@ class MockLocationService {
       });
       return result ?? false;
     } on PlatformException catch (e) {
-      print("Failed to set mock location: ${e.message}");
       return false;
     }
   }
 
-  static Future<bool> enableMockMode() async {
+  static Future<bool> enableMockMode(double latitude, double longitude) async {
     try {
-      final result = await _channel.invokeMethod<bool>('enableMockMode');
+      final result = await _channel.invokeMethod<bool>('enableMockMode', {
+        'latitude': latitude,
+        'longitude': longitude,
+      });
       return result ?? false;
     } on PlatformException catch (e) {
-      print("Failed to enable mock mode: ${e.message}");
       return false;
     }
   }
@@ -31,7 +32,6 @@ class MockLocationService {
       final result = await _channel.invokeMethod<bool>('disableMockMode');
       return result ?? false;
     } on PlatformException catch (e) {
-      print("Failed to disable mock mode: ${e.message}");
       return false;
     }
   }
