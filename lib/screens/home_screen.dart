@@ -30,7 +30,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   bool _isSimulating = false;
   bool _mapLoading = true;
-  String? _mapError;
   Timer? _simulationTimer;
   List<SavedLocation> _savedLocations = [];
   List<LocationHistory> _history = [];
@@ -159,9 +158,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _lngController.text = loc.longitude.toStringAsFixed(6);
       });
       _updateMarkerAndCamera();
+      if (!mounted) return;
       _searchController.clear();
       FocusScope.of(context).unfocus();
     } catch (e) {
+      if (!mounted) return;
       _showSnackBar('Search failed: $e');
     }
   }
@@ -243,18 +244,6 @@ class _HomeScreenState extends State<HomeScreen> {
       _simulationPath.add(_currentPosition);
     });
     _showSnackBar('Point added (${_simulationPath.length} total)');
-  }
-
-  Future<void> _updateMockLocation() async {
-    if (!_isMocking) return;
-    final lat = double.tryParse(_latController.text);
-    final lng = double.tryParse(_lngController.text);
-    if (lat == null || lng == null) return;
-    final success = await MockLocationService.setMockLocation(lat, lng);
-    if (success) {
-      setState(() => _currentPosition = LatLng(lat, lng));
-      _updateMarkerAndCamera();
-    }
   }
 
   Future<void> _addToHistory(double lat, double lng) async {
@@ -564,7 +553,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     bottom: 0, left: 0, right: 0,
                     child: Container(
                       padding: const EdgeInsets.all(12),
-                      color: Colors.orange.shade900.withOpacity(0.9),
+                      color: Colors.orange.shade900.withValues(alpha: 0.9),
                       child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
@@ -684,7 +673,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, -5),
                 ),
