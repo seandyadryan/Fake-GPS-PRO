@@ -1,7 +1,9 @@
 import 'package:flutter/services.dart';
 
 class MockLocationService {
-  static const _channel = MethodChannel('com.deploydulupulangnanti.fakegpspro/location');
+  static const _channel = MethodChannel(
+    'com.deploydulupulangnanti.fakegpspro/location',
+  );
 
   static Future<bool> setMockLocation(double latitude, double longitude) async {
     try {
@@ -10,7 +12,7 @@ class MockLocationService {
         'longitude': longitude,
       });
       return result ?? false;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       return false;
     }
   }
@@ -22,7 +24,7 @@ class MockLocationService {
         'longitude': longitude,
       });
       return result ?? false;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       return false;
     }
   }
@@ -31,7 +33,7 @@ class MockLocationService {
     try {
       final result = await _channel.invokeMethod<bool>('disableMockMode');
       return result ?? false;
-    } on PlatformException catch (e) {
+    } on PlatformException {
       return false;
     }
   }

@@ -39,6 +39,10 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="YOUR_GOOGLE_MAPS_API_KEY"/>
+        <!-- ^^^ Ganti YOUR_GOOGLE_MAPS_API_KEY dengan API key dari Google Cloud Console
+             Cara dapat API key: https://console.cloud.google.com/apis/credentials
+             Aktifkan: Maps SDK for Android
+             Atau set di: lib/config/app_config.dart -->
 
         <meta-data
             android:name="flutterEmbedding"
