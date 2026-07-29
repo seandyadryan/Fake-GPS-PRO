@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         applicationId = "com.deploydulupulangnanti.fake_gps_pro"
-        minSdk = 21
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

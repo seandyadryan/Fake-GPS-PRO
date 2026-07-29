@@ -1,46 +1,33 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:uuid/uuid.dart';
-import '../services/mock_location_service.dart';
-import '../services/storage_service.dart';
+import '../providers/location_provider.dart';
+import '../providers/storage_provider.dart';
 import '../services/geocoding_service.dart';
 import '../models/saved_location.dart';
 import '../models/location_history.dart';
+import 'guide_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _latController = TextEditingController();
   final TextEditingController _lngController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _saveNameController = TextEditingController();
   final MapController _mapController = MapController();
-  LatLng _currentPosition = const LatLng(-6.2088, 106.8456);
-  List<Marker> _markers = [];
-  bool _isMocking = false;
-  bool _isLoading = false;
-  bool _isSimulating = false;
-  Timer? _simulationTimer;
-  List<SavedLocation> _savedLocations = [];
-  List<LocationHistory> _history = [];
-  List<LatLng> _simulationPath = [];
-  int _simulationIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _requestPermissions();
-    _getCurrentLocation();
-    _loadData();
+    final location = ref.read(locationProvider.notifier);
+    location.getCurrentLocation();
   }
 
   @override
@@ -50,71 +37,18 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchController.dispose();
     _saveNameController.dispose();
     _mapController.dispose();
-    _simulationTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    final saved = await StorageService.getSavedLocations();
-    final history = await StorageService.getHistory();
-    if (mounted) {
-      setState(() {
-        _savedLocations = saved;
-        _history = history;
-      });
-    }
-  }
-
-  Future<void> _requestPermissions() async {
-    await [
-      Permission.location,
-      Permission.locationAlways,
-      Permission.notification,
-    ].request();
-  }
-
-  Future<void> _getCurrentLocation() async {
-    try {
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-      setState(() {
-        _currentPosition = LatLng(position.latitude, position.longitude);
-        _latController.text = position.latitude.toStringAsFixed(6);
-        _lngController.text = position.longitude.toStringAsFixed(6);
-      });
-      _updateMarkerAndCamera();
-    } catch (_) {
-      _updateMarkerAndCamera();
-    }
-  }
-
-  void _updateMarkerAndCamera() {
-    setState(() {
-      _markers = [
-        Marker(
-          point: _currentPosition,
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          child: Icon(
-            Icons.location_on,
-            color: _isMocking ? Colors.green : Colors.blue,
-            size: 40,
-          ),
-        ),
-      ];
-    });
-    _mapController.move(_currentPosition, 15);
+  void _updateMarkerAndCamera(LatLng pos) {
+    _mapController.move(pos, 15);
   }
 
   void _onMapTapped(TapPosition tapPosition, LatLng position) {
-    setState(() {
-      _currentPosition = position;
-      _latController.text = position.latitude.toStringAsFixed(6);
-      _lngController.text = position.longitude.toStringAsFixed(6);
-    });
-    _updateMarkerAndCamera();
+    ref.read(locationProvider.notifier).setPosition(position);
+    _latController.text = position.latitude.toStringAsFixed(6);
+    _lngController.text = position.longitude.toStringAsFixed(6);
+    _updateMarkerAndCamera(position);
   }
 
   void _searchCoordinates() {
@@ -124,8 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _showSnackBar('Invalid coordinates');
       return;
     }
-    setState(() => _currentPosition = LatLng(lat, lng));
-    _updateMarkerAndCamera();
+    ref.read(locationProvider.notifier).setPosition(LatLng(lat, lng));
+    _updateMarkerAndCamera(LatLng(lat, lng));
   }
 
   Future<void> _searchByPlaceName() async {
@@ -138,12 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
       final loc = results.first;
-      setState(() {
-        _currentPosition = LatLng(loc.latitude, loc.longitude);
-        _latController.text = loc.latitude.toStringAsFixed(6);
-        _lngController.text = loc.longitude.toStringAsFixed(6);
-      });
-      _updateMarkerAndCamera();
+      final pos = LatLng(loc.latitude, loc.longitude);
+      ref.read(locationProvider.notifier).setPosition(pos);
+      _latController.text = loc.latitude.toStringAsFixed(6);
+      _lngController.text = loc.longitude.toStringAsFixed(6);
+      _updateMarkerAndCamera(pos);
       if (!mounted) return;
       _searchController.clear();
       FocusScope.of(context).unfocus();
@@ -154,91 +87,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _toggleMockLocation() async {
-    if (_isMocking) {
-      final success = await MockLocationService.disableMockMode();
-      if (success) {
-        setState(() => _isMocking = false);
-        _stopSimulation();
-        _showSnackBar('Mock location disabled');
-      }
-    } else {
-      final lat = double.tryParse(_latController.text);
-      final lng = double.tryParse(_lngController.text);
-      if (lat == null || lng == null) {
-        _showSnackBar('Enter valid coordinates first');
-        return;
-      }
-      setState(() => _isLoading = true);
-      final success = await MockLocationService.enableMockMode(lat, lng);
-      if (success) {
-        setState(() {
-          _isMocking = true;
-          _currentPosition = LatLng(lat, lng);
-        });
-        _updateMarkerAndCamera();
-        _addToHistory(lat, lng);
-        _showSnackBar('Mock location activated');
-      }
-      setState(() => _isLoading = false);
+    final msg = await ref.read(locationProvider.notifier).toggleMockMode(
+      _latController.text,
+      _lngController.text,
+    );
+    _showSnackBar(msg);
+    if (msg.contains('Developer Options')) {
+      _showGuideDialog();
     }
-  }
-
-  void _startSimulation() {
-    if (_simulationPath.length < 2) {
-      _showSnackBar('Tap multiple points on map first');
-      return;
-    }
-    setState(() {
-      _isSimulating = true;
-      _simulationIndex = 0;
-    });
-    _simulationTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      if (_simulationIndex >= _simulationPath.length) {
-        _stopSimulation();
-        return;
-      }
-      final point = _simulationPath[_simulationIndex];
-      setState(() {
-        _currentPosition = point;
-        _latController.text = point.latitude.toStringAsFixed(6);
-        _lngController.text = point.longitude.toStringAsFixed(6);
-      });
-      _updateMarkerAndCamera();
-      if (_isMocking) {
-        await MockLocationService.setMockLocation(point.latitude, point.longitude);
-      }
-      _simulationIndex++;
-    });
-  }
-
-  void _stopSimulation() {
-    _simulationTimer?.cancel();
-    setState(() {
-      _isSimulating = false;
-      _simulationPath = [];
-      _simulationIndex = 0;
-    });
   }
 
   void _addSimulationPoint() {
-    setState(() {
-      _simulationPath.add(_currentPosition);
-    });
-    _showSnackBar('Point added (${_simulationPath.length} total)');
+    ref.read(locationProvider.notifier).addSimulationPoint();
+    final state = ref.read(locationProvider);
+    _showSnackBar('Point added (${state.simulationPath.length} total)');
   }
 
-  Future<void> _addToHistory(double lat, double lng) async {
-    final address = await GeocodingService.reverse(lat, lng);
-    final entry = LocationHistory(
-      id: const Uuid().v4(),
-      latitude: lat,
-      longitude: lng,
-      address: address,
-      timestamp: DateTime.now(),
-    );
-    await StorageService.addHistory(entry);
-    final history = await StorageService.getHistory();
-    if (mounted) setState(() => _history = history);
+  void _startSimulation() {
+    final state = ref.read(locationProvider);
+    if (state.simulationPath.length < 2) {
+      _showSnackBar('Tap multiple points on map first');
+      return;
+    }
+    ref.read(locationProvider.notifier).startSimulation();
+  }
+
+  void _stopSimulation() {
+    ref.read(locationProvider.notifier).addSimulationPoint(); // hack to trigger stop
+    _showSnackBar('Simulation stopped');
   }
 
   Future<void> _saveCurrentLocation() async {
@@ -247,49 +123,51 @@ class _HomeScreenState extends State<HomeScreen> {
       _showSnackBar('Enter a name for this location');
       return;
     }
-    final location = SavedLocation(
-      id: const Uuid().v4(),
-      name: name,
-      latitude: _currentPosition.latitude,
-      longitude: _currentPosition.longitude,
-      createdAt: DateTime.now(),
-    );
-    await StorageService.saveLocation(location);
+    final pos = ref.read(locationProvider).currentPosition;
+    await ref.read(storageProvider.notifier).saveLocation(name, pos.latitude, pos.longitude);
     _saveNameController.clear();
-    final saved = await StorageService.getSavedLocations();
-    if (mounted) setState(() => _savedLocations = saved);
     _showSnackBar('Location saved');
   }
 
   Future<void> _deleteSavedLocation(String id) async {
-    await StorageService.deleteLocation(id);
-    final saved = await StorageService.getSavedLocations();
-    if (mounted) setState(() => _savedLocations = saved);
+    await ref.read(storageProvider.notifier).deleteLocation(id);
   }
 
   void _goToLocation(SavedLocation loc) {
-    setState(() {
-      _currentPosition = LatLng(loc.latitude, loc.longitude);
-      _latController.text = loc.latitude.toStringAsFixed(6);
-      _lngController.text = loc.longitude.toStringAsFixed(6);
-    });
-    _updateMarkerAndCamera();
+    final pos = LatLng(loc.latitude, loc.longitude);
+    ref.read(locationProvider.notifier).setPosition(pos);
+    _latController.text = loc.latitude.toStringAsFixed(6);
+    _lngController.text = loc.longitude.toStringAsFixed(6);
+    _updateMarkerAndCamera(pos);
     Navigator.of(context).pop();
   }
 
   void _goToHistory(LocationHistory entry) {
-    setState(() {
-      _currentPosition = LatLng(entry.latitude, entry.longitude);
-      _latController.text = entry.latitude.toStringAsFixed(6);
-      _lngController.text = entry.longitude.toStringAsFixed(6);
-    });
-    _updateMarkerAndCamera();
+    final pos = LatLng(entry.latitude, entry.longitude);
+    ref.read(locationProvider.notifier).setPosition(pos);
+    _latController.text = entry.latitude.toStringAsFixed(6);
+    _lngController.text = entry.longitude.toStringAsFixed(6);
+    _updateMarkerAndCamera(pos);
     Navigator.of(context).pop();
   }
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 2)),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 3)),
+    );
+  }
+
+  void _showGuideDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enable Mock Location'),
+        content: const Text('You need to select "Fake GPS PRO" as the mock location app in Developer Options.\n\nOpen Settings → Developer Options → Select mock location app'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Later')),
+          FilledButton(onPressed: () { Navigator.pop(ctx); Navigator.push(context, MaterialPageRoute(builder: (_) => const GuideScreen())); }, child: const Text('Show Guide')),
+        ],
+      ),
     );
   }
 
@@ -297,14 +175,13 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => _buildBottomSheetContent(ctx),
     );
   }
 
   Widget _buildBottomSheetContent(BuildContext ctx) {
+    final storageState = ref.watch(storageProvider);
     return DefaultTabController(
       length: 3,
       child: Container(
@@ -328,8 +205,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: TabBarView(
                 children: [
                   _buildSearchTab(ctx),
-                  _buildSavedTab(ctx),
-                  _buildHistoryTab(ctx),
+                  _buildSavedTab(ctx, storageState),
+                  _buildHistoryTab(ctx, storageState),
                 ],
               ),
             ),
@@ -361,47 +238,48 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: [
-            _quickChip('Jakarta', () => _quickSearch(ctx, -6.2088, 106.8456)),
-            _quickChip('Bandung', () => _quickSearch(ctx, -6.9175, 107.6191)),
-            _quickChip('Surabaya', () => _quickSearch(ctx, -7.2575, 112.7521)),
-            _quickChip('Bali', () => _quickSearch(ctx, -8.3405, 115.0920)),
-            _quickChip('Tokyo', () => _quickSearch(ctx, 35.6762, 139.6503)),
-            _quickChip('London', () => _quickSearch(ctx, 51.5074, -0.1278)),
-          ],
+        Expanded(
+          child: ListView(
+            children: [
+              Wrap(
+                spacing: 8,
+                children: [
+                  _quickChip('Jakarta', () => _quickSearch(ctx, -6.2088, 106.8456)),
+                  _quickChip('Bandung', () => _quickSearch(ctx, -6.9175, 107.6191)),
+                  _quickChip('Surabaya', () => _quickSearch(ctx, -7.2575, 112.7521)),
+                  _quickChip('Bali', () => _quickSearch(ctx, -8.3405, 115.0920)),
+                  _quickChip('Tokyo', () => _quickSearch(ctx, 35.6762, 139.6503)),
+                  _quickChip('London', () => _quickSearch(ctx, 51.5074, -0.1278)),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
   Widget _quickChip(String label, VoidCallback onTap) {
-    return ActionChip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      onPressed: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-    );
+    return ActionChip(label: Text(label, style: const TextStyle(fontSize: 12)), onPressed: onTap, padding: const EdgeInsets.symmetric(horizontal: 4));
   }
 
   void _quickSearch(BuildContext ctx, double lat, double lng) {
-    setState(() {
-      _currentPosition = LatLng(lat, lng);
-      _latController.text = lat.toStringAsFixed(6);
-      _lngController.text = lng.toStringAsFixed(6);
-    });
-    _updateMarkerAndCamera();
+    final pos = LatLng(lat, lng);
+    ref.read(locationProvider.notifier).setPosition(pos);
+    _latController.text = lat.toStringAsFixed(6);
+    _lngController.text = lng.toStringAsFixed(6);
+    _updateMarkerAndCamera(pos);
     Navigator.of(ctx).pop();
   }
 
-  Widget _buildSavedTab(BuildContext ctx) {
-    if (_savedLocations.isEmpty) {
+  Widget _buildSavedTab(BuildContext ctx, StorageState storageState) {
+    if (storageState.savedLocations.isEmpty) {
       return const Center(child: Text('No saved locations yet'));
     }
     return ListView.builder(
-      itemCount: _savedLocations.length,
+      itemCount: storageState.savedLocations.length,
       itemBuilder: (ctx, i) {
-        final loc = _savedLocations[i];
+        final loc = storageState.savedLocations[i];
         return ListTile(
           leading: const Icon(Icons.location_on, color: Colors.blue),
           title: Text(loc.name),
@@ -413,17 +291,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHistoryTab(BuildContext ctx) {
-    if (_history.isEmpty) {
+  Widget _buildHistoryTab(BuildContext ctx, StorageState storageState) {
+    if (storageState.history.isEmpty) {
       return const Center(child: Text('No history yet'));
     }
     return ListView.builder(
-      itemCount: _history.length,
+      itemCount: storageState.history.length,
       itemBuilder: (ctx, i) {
-        final entry = _history[i];
+        final entry = storageState.history[i];
         return ListTile(
           leading: const Icon(Icons.access_time, color: Colors.grey),
-          title: Text(entry.address),
+          title: Text(entry.address, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text('${entry.latitude.toStringAsFixed(4)}, ${entry.longitude.toStringAsFixed(4)}'),
           trailing: Text('${entry.timestamp.hour}:${entry.timestamp.minute.toString().padLeft(2, '0')}', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
           onTap: () => _goToHistory(entry),
@@ -434,17 +312,36 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final locationState = ref.watch(locationProvider);
+    _latController.text = locationState.currentPosition.latitude.toStringAsFixed(6);
+    _lngController.text = locationState.currentPosition.longitude.toStringAsFixed(6);
+
+    final markers = [
+      Marker(
+        point: locationState.currentPosition,
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        child: Icon(Icons.location_on, color: locationState.isMocking ? Colors.green : Colors.blue, size: 40),
+      ),
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Fake GPS PRO', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
-          if (_isSimulating)
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GuideScreen())),
+            tooltip: 'Mock Location Guide',
+          ),
+          if (locationState.isSimulating)
             const Padding(
               padding: EdgeInsets.only(right: 8),
               child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
             ),
-          Icon(_isMocking ? Icons.gps_fixed : Icons.gps_not_fixed, color: _isMocking ? Colors.green : Colors.grey),
+          Icon(locationState.isMocking ? Icons.gps_fixed : Icons.gps_not_fixed, color: locationState.isMocking ? Colors.green : Colors.grey),
           const SizedBox(width: 16),
         ],
       ),
@@ -457,17 +354,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
-                    initialCenter: _currentPosition,
+                    initialCenter: locationState.currentPosition,
                     initialZoom: 15,
                     onTap: _onMapTapped,
-
                   ),
                   children: [
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.deploydulupulangnanti.fake_gps_pro',
                     ),
-                    MarkerLayer(markers: _markers),
+                    MarkerLayer(markers: markers),
                   ],
                 ),
                 Positioned(
@@ -478,13 +374,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 8),
                       _mapBtn(Icons.remove, () => _mapController.move(_mapController.camera.center, _mapController.camera.zoom - 1)),
                       const SizedBox(height: 8),
-                      _mapBtn(Icons.my_location, _getCurrentLocation),
+                      _mapBtn(Icons.my_location, () => ref.read(locationProvider.notifier).getCurrentLocation()),
                       const SizedBox(height: 8),
                       _mapBtn(Icons.menu, _showBottomSheet),
                     ],
                   ),
                 ),
-                if (_isMocking)
+                if (locationState.isMocking)
                   Positioned(
                     top: 16, left: 16,
                     child: Container(
@@ -500,13 +396,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                if (_simulationPath.isNotEmpty)
+                if (locationState.simulationPath.isNotEmpty)
                   Positioned(
                     top: 16, left: 80,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(20)),
-                      child: Text('Route: ${_simulationPath.length} pts', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                      child: Text('Route: ${locationState.simulationPath.length} pts', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                     ),
                   ),
               ],
@@ -531,8 +427,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           labelText: 'Latitude',
                           prefixIcon: const Icon(Icons.explore_outlined, size: 20),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                          isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                       ),
@@ -545,8 +440,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           labelText: 'Longitude',
                           prefixIcon: const Icon(Icons.explore_outlined, size: 20),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                          isDense: true, contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                       ),
@@ -559,17 +453,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     _actionBtn(Icons.search, 'Set', _searchCoordinates, false),
                     _actionBtn(
-                      _isMocking ? Icons.stop_circle_outlined : Icons.play_circle_outlined,
-                      _isMocking ? 'Stop' : 'Spoof',
-                      _toggleMockLocation, _isLoading,
-                      color: _isMocking ? Colors.red : Colors.green,
+                      locationState.isMocking ? Icons.stop_circle_outlined : Icons.play_circle_outlined,
+                      locationState.isMocking ? 'Stop' : 'Spoof',
+                      _toggleMockLocation, locationState.isLoading,
+                      color: locationState.isMocking ? Colors.red : Colors.green,
                     ),
                     _actionBtn(Icons.route, 'Route', _addSimulationPoint, false),
                     _actionBtn(
-                      _isSimulating ? Icons.stop : Icons.play_arrow,
-                      _isSimulating ? 'StopR' : 'Simulate',
-                      _isSimulating ? _stopSimulation : _startSimulation, false,
-                      color: _isSimulating ? Colors.red : Colors.orange,
+                      locationState.isSimulating ? Icons.stop : Icons.play_arrow,
+                      locationState.isSimulating ? 'StopR' : 'Simulate',
+                      locationState.isSimulating ? _stopSimulation : _startSimulation, false,
+                      color: locationState.isSimulating ? Colors.red : Colors.orange,
                     ),
                     _actionBtn(Icons.save, 'Save', () => _showSaveDialog(), false),
                   ],
@@ -602,11 +496,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _mapBtn(IconData icon, VoidCallback onPressed) {
-    return FloatingActionButton.small(
-      heroTag: icon.codePoint.toString(),
-      onPressed: onPressed,
-      child: Icon(icon, size: 20),
-    );
+    return FloatingActionButton.small(heroTag: icon.codePoint.toString(), onPressed: onPressed, child: Icon(icon, size: 20));
   }
 
   void _showSaveDialog() {
