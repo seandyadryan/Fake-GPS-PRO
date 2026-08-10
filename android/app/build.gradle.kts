@@ -61,7 +61,6 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
-    implementation("com.google.android.play:core:1.10.3")
 }
 
 flutter {

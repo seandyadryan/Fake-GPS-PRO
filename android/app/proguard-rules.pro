@@ -4,3 +4,11 @@
 -keep class io.flutter.view.** { *; }
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
+
+# Flutter engine references Play Core classes for deferred components.
+# These classes are not required for normal APK/AAB builds, so ignore them
+# during R8 minification instead of bundling the incompatible play-core library.
+-dontwarn com.google.android.play.core.**
+-dontwarn com.google.android.play.core.splitcompat.**
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
