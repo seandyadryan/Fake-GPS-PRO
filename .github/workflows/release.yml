@@ -1,4 +1,4 @@
-name: Build & Release APK
+name: Build AAB & APK
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-apk:
-    name: Build Release APK
+  build:
+    name: Build AAB & APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -31,31 +31,30 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           mkdir -p "$HOME/keystore"
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$HOME/keystore/fakegpspro.jks"
-            echo "storeFile=$HOME/keystore/fakegpspro.jks" > android/key.properties
-            echo "storePassword=$KEYSTORE_PASSWORD" >> android/key.properties
-            echo "keyAlias=$KEY_ALIAS" >> android/key.properties
-            echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
-          else
-            echo "WARNING: No keystore secret found, building signed with local key.properties if exists"
-          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$HOME/keystore/fakegpspro.jks"
+          echo "storeFile=$HOME/keystore/fakegpspro.jks" > android/key.properties
+          echo "storePassword=$KEYSTORE_PASSWORD" >> android/key.properties
+          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+          echo "Keystore decoded and key.properties written"
 
-      - name: Check keystore
-        run: |
-          if [ -f android/key.properties ]; then
-            echo "key.properties exists"
-          else
-            echo "No key.properties - will fail unless build.gradle.kts allows unsigned"
-          fi
+      - name: Build AAB (App Bundle)
+        run: flutter build appbundle --release
 
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fake-gps-pro-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fake-gps-pro-release
+          name: fake-gps-pro-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
@@ -63,5 +62,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/flutter-apk/app-release.apk
           generate_release_notes: true
