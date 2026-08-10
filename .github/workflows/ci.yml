@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  analyze-and-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter (FVM 3.41.2)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.2
+          cache: true
+
+      - name: Enable FVM
+        run: |
+          dart pub global activate fvm || true
+          fvm use 3.41.2 --force || true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
