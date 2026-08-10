@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
@@ -30,11 +31,16 @@ class MockLocationService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                currentLat = intent.getDoubleExtra(EXTRA_LAT, 0.0)
-                currentLng = intent.getDoubleExtra(EXTRA_LNG, 0.0)
-                startForeground(NOTIFICATION_ID, createNotification())
-                setupMockProvider()
-                updateMockLocationLoop()
+                try {
+                    currentLat = intent.getDoubleExtra(EXTRA_LAT, 0.0)
+                    currentLng = intent.getDoubleExtra(EXTRA_LNG, 0.0)
+                    startInForeground()
+                    setupMockProvider()
+                    updateMockLocationLoop()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    stopSelf()
+                }
             }
             ACTION_UPDATE -> {
                 currentLat = intent.getDoubleExtra(EXTRA_LAT, currentLat)
@@ -42,7 +48,11 @@ class MockLocationService : Service() {
                 updateMockLocation(currentLat, currentLng)
             }
             ACTION_STOP -> {
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                } else {
+                    stopForeground(true)
+                }
                 removeMockProvider()
                 stopSelf()
             }
@@ -51,6 +61,19 @@ class MockLocationService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun startInForeground() {
+        val notification = createNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
 
     @SuppressLint("MissingPermission")
     private fun setupMockProvider() {
