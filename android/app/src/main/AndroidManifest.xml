@@ -21,8 +21,6 @@
     </activity>
 
     <service android:name=".MockLocationService" android:foregroundServiceType="location" android:exported="false"/>
-
-    <meta-data android:name="com.google.android.geo.API_KEY" android:value="AIzaSyDmgWA08LTXdWND2OyU6WEAUzgSY4KaISs"/>
     <!-- ^^^ Ganti YOUR_GOOGLE_MAPS_API_KEY dengan API key dari Google Cloud Console
              Cara dapat API key: https://console.cloud.google.com/apis/credentials
              Aktifkan: Maps SDK for Android
