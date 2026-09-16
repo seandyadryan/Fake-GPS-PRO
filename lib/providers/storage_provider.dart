@@ -8,10 +8,7 @@ class StorageState {
   final List<SavedLocation> savedLocations;
   final List<LocationHistory> history;
 
-  StorageState({
-    this.savedLocations = const [],
-    this.history = const [],
-  });
+  StorageState({this.savedLocations = const [], this.history = const []});
 }
 
 class StorageNotifier extends StateNotifier<StorageState> {
@@ -22,7 +19,7 @@ class StorageNotifier extends StateNotifier<StorageState> {
   Future<void> _load() async {
     final saved = await StorageService.getSavedLocations();
     final history = await StorageService.getHistory();
-    state = StorageState(savedLocations: saved, history: history);
+    if (mounted) state = StorageState(savedLocations: saved, history: history);
   }
 
   Future<void> saveLocation(String name, double lat, double lng) async {
@@ -48,6 +45,8 @@ class StorageNotifier extends StateNotifier<StorageState> {
   }
 }
 
-final storageProvider = StateNotifierProvider<StorageNotifier, StorageState>((ref) {
+final storageProvider = StateNotifierProvider<StorageNotifier, StorageState>((
+  ref,
+) {
   return StorageNotifier();
 });
