@@ -1,3 +1,4 @@
+import '../models/location_message.dart';
 import 'package:flutter/services.dart';
 
 class MockStatus {
@@ -10,7 +11,7 @@ class MockStatus {
   final bool hasProviders;
   final double? latitude;
   final double? longitude;
-  final String? error;
+  final LocationMessage? error;
 
   const MockStatus({
     this.supported = true,
@@ -41,7 +42,9 @@ class MockStatus {
     hasProviders: map['hasProviders'] == true,
     latitude: (map['latitude'] as num?)?.toDouble(),
     longitude: (map['longitude'] as num?)?.toDouble(),
-    error: map['error'] as String?,
+    error: map['error'] == null
+        ? null
+        : LocationMessage.fromCode(map['error'] as String),
   );
 }
 

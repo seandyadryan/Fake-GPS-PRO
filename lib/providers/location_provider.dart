@@ -1,3 +1,4 @@
+import '../models/location_message.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +19,7 @@ class LocationState {
   final bool isSimulating;
   final List<LatLng> simulationPath;
   final MockStatus? setup;
-  final String? error;
+  final LocationMessage? error;
 
   const LocationState({
     this.currentPosition = const LatLng(-6.2088, 106.8456),
@@ -39,7 +40,7 @@ class LocationState {
     bool? isSimulating,
     List<LatLng>? simulationPath,
     MockStatus? setup,
-    String? error,
+    LocationMessage? error,
     bool clearError = false,
   }) => LocationState(
     currentPosition: currentPosition ?? this.currentPosition,
@@ -107,8 +108,8 @@ class LocationNotifier extends StateNotifier<LocationState> {
   }
 
   static LatLng? parseCoordinates(String latText, String lngText) {
-    final lat = double.tryParse(latText.trim());
-    final lng = double.tryParse(lngText.trim());
+    final lat = double.tryParse(_normalizeCoordinate(latText));
+    final lng = double.tryParse(_normalizeCoordinate(lngText));
     if (lat == null ||
         lng == null ||
         !lat.isFinite ||
@@ -122,34 +123,69 @@ class LocationNotifier extends StateNotifier<LocationState> {
     return LatLng(lat, lng);
   }
 
+  static String _normalizeCoordinate(String text) {
+    final normalized = text
+        .trim()
+        .replaceAll('−', '-')
+        .replaceAll(',', '.')
+        .replaceAll('٫', '.')
+        .replaceAll(RegExp('[\u200e\u200f\u061c\u2066-\u2069]'), '');
+    // Arabic-Indic, Persian and common South Asian decimal digits.
+    const zeroes = [
+      0x0660,
+      0x06f0,
+      0x0966,
+      0x09e6,
+      0x0a66,
+      0x0ae6,
+      0x0b66,
+      0x0be6,
+      0x0c66,
+      0x0ce6,
+      0x0d66,
+      0x0e50,
+      0x0ed0,
+      0x1040,
+      0xff10,
+    ];
+    return String.fromCharCodes(
+      normalized.runes.map((rune) {
+        for (final zero in zeroes) {
+          if (rune >= zero && rune <= zero + 9) return 0x30 + rune - zero;
+        }
+        return rune;
+      }),
+    );
+  }
+
   void setPosition(LatLng pos) {
     state = state.copyWith(currentPosition: pos);
   }
 
-  Future<String?> requestLocationPermission() async {
+  Future<LocationMessage?> requestLocationPermission() async {
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
     if (permission == LocationPermission.deniedForever) {
-      return 'Izin lokasi diblokir. Buka pengaturan aplikasi dan izinkan Lokasi.';
+      return LocationMessage.permissionBlocked;
     }
     if (permission != LocationPermission.always &&
         permission != LocationPermission.whileInUse) {
-      return 'Izin lokasi diperlukan untuk menjalankan spoof.';
+      return LocationMessage.permissionRequired;
     }
     return null;
   }
 
-  Future<String?> getCurrentLocation() async {
+  Future<LocationMessage?> getCurrentLocation() async {
     if (state.isMocking || state.setup?.hasProviders == true) {
-      return 'Stop mock location dahulu untuk mengambil lokasi perangkat.';
+      return LocationMessage.stopBeforeLocate;
     }
     try {
       final error = await requestLocationPermission();
       if (error != null) return error;
       if (!await Geolocator.isLocationServiceEnabled()) {
-        return 'Aktifkan layanan lokasi perangkat.';
+        return LocationMessage.locationRequired;
       }
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -158,7 +194,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
         ),
       );
       if (position.isMocked) {
-        return 'GPS masih mengembalikan lokasi mock terakhir. Tunggu sebentar lalu coba lagi.';
+        return LocationMessage.staleMockLocation;
       }
       if (mounted && !state.isMocking) {
         state = state.copyWith(
@@ -167,31 +203,31 @@ class LocationNotifier extends StateNotifier<LocationState> {
       }
       return null;
     } catch (_) {
-      return 'Lokasi belum didapat. Pastikan GPS aktif lalu coba lagi.';
+      return LocationMessage.locationUnavailable;
     }
   }
 
-  Future<String> startMock(String latText, String lngText) async {
-    if (state.isLoading) return 'Tunggu proses sebelumnya selesai.';
+  Future<LocationMessage?> startMock(String latText, String lngText) async {
+    if (state.isLoading) return LocationMessage.operationBusy;
     final pos = parseCoordinates(latText, lngText);
     if (pos == null) {
-      return 'Koordinat tidak valid. Latitude −90…90, longitude −180…180.';
+      return LocationMessage.invalidCoordinates;
     }
     _operationVersion++;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final setup = await MockLocationService.getStatus();
-      if (!mounted) return '';
+      if (!mounted) return null;
       state = state.copyWith(setup: setup);
-      if (!setup.supported) return 'Spoof lokasi tersedia di Android saja.';
+      if (!setup.supported) return LocationMessage.androidOnly;
       if (!setup.developerEnabled) {
-        return 'Aktifkan Developer Mode terlebih dahulu.';
+        return LocationMessage.developerRequired;
       }
       if (!setup.mockAppSelected) {
-        return 'Pilih Fake GPS PRO sebagai aplikasi mock location.';
+        return LocationMessage.mockAppRequired;
       }
       if (!setup.locationEnabled) {
-        return 'Aktifkan layanan lokasi perangkat terlebih dahulu.';
+        return LocationMessage.locationRequired;
       }
       if (!setup.locationPermissionGranted) {
         final error = await requestLocationPermission();
@@ -206,12 +242,9 @@ class LocationNotifier extends StateNotifier<LocationState> {
         pos.longitude,
       );
       if (!success) {
-        throw PlatformException(
-          code: 'START_FAILED',
-          message: 'Android menolak spoof lokasi.',
-        );
+        throw PlatformException(code: 'START_FAILED', message: 'startFailed');
       }
-      if (!mounted) return '';
+      if (!mounted) return null;
       stopSimulation();
       state = state.copyWith(
         isMocking: true,
@@ -220,7 +253,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
       );
       await _addToHistory(pos);
       await refreshStatus();
-      return 'Mock location aktif.';
+      return LocationMessage.mockStarted;
     } catch (e) {
       await refreshStatus();
       if (mounted) state = state.copyWith(error: _message(e));
@@ -230,22 +263,19 @@ class LocationNotifier extends StateNotifier<LocationState> {
     }
   }
 
-  Future<String> stopMock() async {
-    if (state.isLoading) return 'Tunggu proses sebelumnya selesai.';
+  Future<LocationMessage?> stopMock() async {
+    if (state.isLoading) return LocationMessage.operationBusy;
     _operationVersion++;
     stopSimulation();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       if (!await MockLocationService.disableMockMode()) {
-        throw PlatformException(
-          code: 'STOP_FAILED',
-          message: 'Mock location belum berhasil dihentikan.',
-        );
+        throw PlatformException(code: 'STOP_FAILED', message: 'stopFailed');
       }
-      if (!mounted) return '';
+      if (!mounted) return null;
       state = state.copyWith(isMocking: false);
       await refreshStatus();
-      return 'Mock location dihentikan. Menunggu pembaruan lokasi asli dari GPS.';
+      return LocationMessage.mockStopped;
     } catch (e) {
       await refreshStatus();
       if (mounted) state = state.copyWith(error: _message(e));
@@ -267,11 +297,11 @@ class LocationNotifier extends StateNotifier<LocationState> {
     state = state.copyWith(simulationPath: []);
   }
 
-  String? startSimulation() {
+  LocationMessage? startSimulation() {
     if (state.isLoading || state.isSimulating) return null;
-    if (!state.isMocking) return 'Mulai spoof sebelum menjalankan rute.';
+    if (!state.isMocking) return LocationMessage.routeNeedsMock;
     if (state.simulationPath.length < 2) {
-      return 'Tambahkan minimal 2 titik rute.';
+      return LocationMessage.routeNeedsPoints;
     }
     final path = List<LatLng>.of(state.simulationPath);
     final generation = ++_routeGeneration;
@@ -294,7 +324,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
       if (!success) {
         throw PlatformException(
           code: 'UPDATE_FAILED',
-          message: 'Pembaruan lokasi rute gagal.',
+          message: 'routeUpdateFailed',
         );
       }
       state = state.copyWith(currentPosition: point, activePosition: point);
@@ -336,16 +366,20 @@ class LocationNotifier extends StateNotifier<LocationState> {
       if (mounted) onHistoryChanged?.call();
     } catch (_) {
       if (mounted) {
-        state = state.copyWith(
-          error: 'Spoof aktif, tetapi riwayat gagal disimpan.',
-        );
+        state = state.copyWith(error: LocationMessage.historySaveFailed);
       }
     }
   }
 
-  String _message(Object e) => e is PlatformException
-      ? e.message ?? 'Operasi Android gagal (${e.code}).'
-      : 'Operasi lokasi gagal. Coba lagi.';
+  LocationMessage _message(Object error) {
+    if (error is PlatformException) {
+      final message = LocationMessage.fromCode(error.message);
+      return message == LocationMessage.nativeError
+          ? LocationMessage.fromCode(error.code)
+          : message;
+    }
+    return LocationMessage.nativeError;
+  }
 }
 
 final locationProvider = StateNotifierProvider<LocationNotifier, LocationState>(

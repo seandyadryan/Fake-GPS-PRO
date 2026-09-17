@@ -34,6 +34,40 @@ untuk menunggu geocoding. Simulasi rute memakai timer Flutter: jalankan dengan a
 kelanjutan timer ketika aplikasi ditangguhkan Android belum dijamin. Layanan lokasi statis berjalan
 sebagai foreground service dan tidak otomatis mengaktifkan ulang spoof setelah proses dimatikan.
 
+## Bahasa
+
+Tekan ikon globe di halaman utama untuk mencari dan memilih bahasa. Tersedia
+80 pilihan bahasa/varian, termasuk Indonesia, Inggris, Arab, dan Mandarin sederhana
+serta tradisional. Daftar lengkap ada di `lib/l10n/languages.json`. Pilihan disimpan
+dan berlaku untuk halaman aplikasi, pesan kesalahan, panduan, serta notifikasi Android.
+Mengganti bahasa tidak menghentikan sesi spoof yang sedang aktif.
+
+Pilihan **Ikuti bahasa perangkat** memakai bahasa perangkat yang didukung, dengan
+fallback Inggris. Varian regional memakai terjemahan bahasa induk; Norwegia Nynorsk
+memakai Bokmål dan Swiss German memakai Jerman. Ini belum mencakup setiap bahasa
+di dunia. Bahasa kanan-ke-kiri didukung, sedangkan input koordinat tetap kiri-ke-kanan.
+Input menerima angka Arab/Persia dan beberapa aksara Asia Selatan serta pemisah
+desimal titik/koma. Tanggal riwayat mengikuti format bahasa antarmuka.
+
+Terjemahan antarmuka tersimpan di aplikasi dan bekerja offline. Nama tempat hasil
+pencarian mengikuti ketersediaan data penyedia; tulisan pada tile peta tidak berubah.
+Terjemahan saat ini merupakan draf berbantuan mesin/AI dan perlu ditinjau penutur asli
+sebelum rilis komersial. Kontrol kalender Cupertino Pashto yang tidak digunakan aplikasi
+masih memakai fallback Inggris. Backend spoof tetap khusus Android.
+
+Untuk memperbarui katalog, edit `lib/l10n/app_*.arb`, lalu jalankan:
+
+```powershell
+python tool/sync_l10n.py
+flutter gen-l10n
+dart format lib/l10n/languages.dart
+```
+
+`sync_l10n.py` memvalidasi kelengkapan pesan/placeholder dan menyinkronkan label
+notifikasi native. `generate_draft_translations.py` merupakan alat pengembangan opsional
+yang mengirim teks UI umum ke layanan terjemahan publik Google; tidak dijalankan aplikasi
+dan hasilnya tetap perlu diperiksa manusia.
+
 ## Verifikasi pengembangan
 
 Dengan Flutter 3.41.2 di PATH (atau gunakan `fvm flutter`):
@@ -52,6 +86,9 @@ Tile peta diganti placeholder dalam pengujian agar tidak memanggil jaringan.
 Tes mencakup prasyarat spoof, kegagalan native, validasi koordinat, konfirmasi mulai,
 stop/mock/rute, sinkronisasi stop dari notifikasi, input yang tidak tertimpa polling,
 perubahan lokasi tersimpan pada panel terbuka, dan layout berbagai ukuran layar.
+Tes lokalisasi memeriksa katalog 80 bahasa, arah tulisan, layout layar kecil,
+format tanggal, input angka lokal, penyimpanan pilihan bahasa, dan perpindahan
+bahasa tanpa membuat ulang provider lokasi.
 Method channel Android dimock dalam tes Flutter; build APK memeriksa kompilasi native,
 bukan keberhasilan injeksi GPS pada perangkat fisik.
 

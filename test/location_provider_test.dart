@@ -1,3 +1,4 @@
+import 'package:fake_gps_pro/models/location_message.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,7 +100,7 @@ void main() {
       ]) {
         expect(
           await notifier.startMock(coords.$1, coords.$2),
-          contains('Koordinat tidak valid'),
+          LocationMessage.invalidCoordinates,
         );
       }
       expect(calls, isEmpty);
@@ -128,7 +129,7 @@ void main() {
     failStart = true;
     expect(
       await notifier.startMock('-6.2', '106.8'),
-      contains('Android rejected provider'),
+      LocationMessage.nativeError,
     );
     expect(notifier.state.isMocking, isFalse);
     expect(notifier.state.isLoading, isFalse);
@@ -160,7 +161,7 @@ void main() {
   test('failed stop retains native running state and exposes error', () async {
     await notifier.startMock('-6.2', '106.8');
     failStop = true;
-    expect(await notifier.stopMock(), contains('Cleanup failed'));
+    expect(await notifier.stopMock(), LocationMessage.nativeError);
     expect(notifier.state.isMocking, isTrue);
     expect(notifier.state.isLoading, isFalse);
   });
@@ -228,7 +229,7 @@ void main() {
   test('route requires active spoof', () {
     notifier.addSimulationPoint();
     notifier.addSimulationPoint();
-    expect(notifier.startSimulation(), contains('Mulai spoof'));
+    expect(notifier.startSimulation(), LocationMessage.routeNeedsMock);
     expect(calls.where((call) => call.method == 'setMockLocation'), isEmpty);
   });
 }

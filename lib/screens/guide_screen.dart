@@ -1,3 +1,4 @@
+import '../l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -15,9 +16,7 @@ class GuideScreen extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Buka Pengaturan perangkat secara manual.'),
-          ),
+          SnackBar(content: Text(context.l10n.openSettingsManually)),
         );
       }
     }
@@ -28,25 +27,25 @@ class GuideScreen extends ConsumerWidget {
     final setup = ref.watch(locationProvider).setup;
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Siapkan perangkat')),
+      appBar: AppBar(title: Text(context.l10n.setupDevice)),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20),
         children: [
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(24),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [colors.primary, const Color(0xFF0F766E)],
+                colors: [colors.primary, Color(0xFF0F766E)],
               ),
               borderRadius: BorderRadius.circular(24),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.explore_rounded, color: Colors.white, size: 40),
                 SizedBox(height: 16),
                 Text(
-                  'Siap dalam beberapa langkah',
+                  context.l10n.setupHeadline,
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
@@ -55,52 +54,52 @@ class GuideScreen extends ConsumerWidget {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'Android mengharuskan Developer Mode aktif dan Fake GPS PRO dipilih sebagai aplikasi mock location.',
+                  context.l10n.setupDescription,
                   style: TextStyle(color: Colors.white, height: 1.5),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           if (setup?.supported == false)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 16),
-              child: Text('Spoof lokasi hanya tersedia di Android.'),
+              child: Text(context.l10n.androidOnly),
             ),
           _step(
             context,
             1,
-            'Aktifkan Developer Mode',
-            'Buka Tentang ponsel → Informasi perangkat lunak → ketuk Nomor bentukan / Build number 7 kali. Nama menu dapat berbeda di tiap merek.',
+            context.l10n.enableDeveloperMode,
+            context.l10n.developerInstructions,
             setup?.developerEnabled == true,
-            'Buka Tentang ponsel',
+            context.l10n.openAboutPhone,
             () => _open(context, 'about'),
           ),
           _step(
             context,
             2,
-            'Pilih aplikasi mock location',
-            'Di Opsi pengembang / Developer Options, aktifkan sakelar utama. Buka Pilih aplikasi lokasi palsu / Select mock location app, lalu pilih Fake GPS PRO.',
+            context.l10n.selectMockApp,
+            context.l10n.mockAppInstructions,
             setup?.mockAppSelected == true,
-            'Buka Developer Options',
+            context.l10n.openDeveloperOptions,
             () => _open(context, 'dev'),
           ),
           _step(
             context,
             3,
-            'Aktifkan lokasi perangkat',
-            'Layanan lokasi perangkat harus aktif sebelum spoof dimulai.',
+            context.l10n.enableDeviceLocation,
+            context.l10n.locationInstructions,
             setup?.locationEnabled == true,
-            'Buka pengaturan lokasi',
+            context.l10n.openLocationSettings,
             () => _open(context, 'location'),
           ),
           _step(
             context,
             4,
-            'Izinkan akses lokasi',
-            'Pilih Izinkan saat aplikasi digunakan. Jika izin pernah diblokir, ubah lewat pengaturan aplikasi.',
+            context.l10n.allowLocationAccess,
+            context.l10n.permissionInstructions,
             setup?.locationPermissionGranted == true,
-            'Atur izin lokasi',
+            context.l10n.manageLocationPermission,
             () async {
               try {
                 final permission = await Geolocator.checkPermission();
@@ -111,24 +110,24 @@ class GuideScreen extends ConsumerWidget {
                       .read(locationProvider.notifier)
                       .requestLocationPermission();
                   if (error != null && context.mounted) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(error)));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(error.localize(context.l10n))),
+                    );
                   }
                 }
                 await ref.read(locationProvider.notifier).refreshStatus();
               } catch (_) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Buka izin lokasi di pengaturan aplikasi.'),
+                    SnackBar(
+                      content: Text(context.l10n.openAppPermissionSettings),
                     ),
                   );
                 }
               }
             },
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           FilledButton.icon(
             onPressed: () async {
               await ref.read(locationProvider.notifier).refreshStatus();
@@ -137,18 +136,16 @@ class GuideScreen extends ConsumerWidget {
                 Navigator.pop(context);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Lengkapi pengaturan yang belum aktif.'),
-                  ),
+                  SnackBar(content: Text(context.l10n.completeSetup)),
                 );
               }
             },
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Periksa kesiapan'),
+            icon: Icon(Icons.check_circle_outline),
+            label: Text(context.l10n.checkReadiness),
           ),
-          const SizedBox(height: 18),
-          const Text(
-            'Setelah siap, kembali ke peta lalu tekan Mulai spoof. Gunakan Stop mock location di aplikasi atau notifikasi untuk menghentikannya. GPS mungkin perlu beberapa saat untuk mendapatkan lokasi asli.',
+          SizedBox(height: 18),
+          Text(
+            context.l10n.afterSetupInstructions,
             style: TextStyle(height: 1.5),
           ),
         ],
@@ -167,9 +164,9 @@ class GuideScreen extends ConsumerWidget {
   ) {
     final colors = Theme.of(context).colorScheme;
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -187,24 +184,24 @@ class GuideScreen extends ConsumerWidget {
                           style: TextStyle(color: colors.onSurface),
                         ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               description,
               style: TextStyle(color: colors.onSurfaceVariant, height: 1.5),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             TextButton.icon(
               onPressed: onTap,
-              icon: const Icon(Icons.open_in_new, size: 16),
+              icon: Icon(Icons.open_in_new, size: 16),
               label: Text(action),
             ),
           ],

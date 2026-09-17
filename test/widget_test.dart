@@ -1,3 +1,4 @@
+import 'package:fake_gps_pro/l10n/l10n.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -89,6 +90,9 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           theme: appTheme(brightness),
+          locale: const Locale('id'),
+          localizationsDelegates: appLocalizationDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
               context,
@@ -114,7 +118,7 @@ void main() {
   testWidgets('coordinate edits survive status polling', (tester) async {
     await showHome(tester);
     await tester.enterText(
-      find.widgetWithText(TextField, 'Latitude'),
+      find.widgetWithText(TextField, 'Lintang'),
       '-7.123456',
     );
     await tester.pump(const Duration(seconds: 3));

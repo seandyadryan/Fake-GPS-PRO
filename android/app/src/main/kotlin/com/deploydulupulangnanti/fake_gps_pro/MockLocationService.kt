@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import java.util.Locale
 import android.content.pm.ServiceInfo
 import android.location.Criteria
 import android.location.Location
@@ -30,7 +32,7 @@ class MockLocationService : Service() {
                 publishLocation()
                 handler.postDelayed(this, 1000)
             } catch (e: Exception) {
-                lastError = e.message ?: "Izin mock location berubah."
+                lastError = "mockPermissionChanged"
                 finishMocking()
             }
         }
@@ -38,10 +40,8 @@ class MockLocationService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            getSystemService(NotificationManager::class.java).createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Mock location", NotificationManager.IMPORTANCE_LOW))
-        }
+        instance = this
+        updateNotificationChannel()
     }
 
     @Suppress("DEPRECATION")
@@ -76,7 +76,7 @@ class MockLocationService : Service() {
                     handler.postDelayed(tick, 1000)
                 }
                 ACTION_UPDATE -> {
-                    check(isActive) { "Mock location sudah berhenti." }
+                    check(isActive) { "notRunning" }
                     latitude = intent.getDoubleExtra("latitude", latitude)
                     longitude = intent.getDoubleExtra("longitude", longitude)
                     require(latitude.isFinite() && longitude.isFinite() && latitude in -90.0..90.0 && longitude in -180.0..180.0)
@@ -92,7 +92,7 @@ class MockLocationService : Service() {
             }
             receiver?.send(0, Bundle())
         } catch (e: Exception) {
-            lastError = e.message ?: "Android menolak mock location."
+            lastError = if (e.message == "cleanupFailed") "cleanupFailed" else "startFailed"
             finishMocking()
             receiver?.send(1, Bundle().apply { putString("error", lastError) })
         }
@@ -124,7 +124,7 @@ class MockLocationService : Service() {
             } catch (_: IllegalArgumentException) {
                 providers.remove(provider)
             } catch (e: Exception) {
-                error = "Gagal memulihkan provider lokasi. Pilih ulang Fake GPS PRO di Developer Options, lalu tekan Stop. ${e.message.orEmpty()}"
+                error = "cleanupFailed"
             }
         }
         return error
@@ -140,23 +140,38 @@ class MockLocationService : Service() {
         return error
     }
 
+    private fun updateNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val labels = NotificationLanguage.localizedContext(this)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, labels.getString(R.string.mock_notification_channel), NotificationManager.IMPORTANCE_LOW))
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        refreshNotificationLabels()
+    }
+
     private fun notification(): Notification {
+        val labels = NotificationLanguage.localizedContext(this)
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), flags)
         val stop = PendingIntent.getService(this, 1,
             Intent(this, MockLocationService::class.java).setAction(ACTION_STOP), flags)
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Mock location aktif")
-            .setContentText("%.6f, %.6f".format(latitude, longitude))
+            .setContentTitle(labels.getString(R.string.mock_notification_title))
+            .setContentText("%.6f, %.6f".format(Locale.US, latitude, longitude))
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentIntent(open)
-            .addAction(android.R.drawable.ic_media_pause, "Stop mock location", stop)
+            .addAction(android.R.drawable.ic_media_pause, labels.getString(R.string.mock_notification_stop), stop)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()
     }
 
     override fun onDestroy() {
+        instance = null
         isActive = false
         handler.removeCallbacks(tick)
         removeProviders()?.let { lastError = it }
@@ -166,6 +181,15 @@ class MockLocationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        private var instance: MockLocationService? = null
+        fun refreshNotificationLabels() {
+            instance?.let { service ->
+                service.updateNotificationChannel()
+                if (isActive) {
+                    service.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, service.notification())
+                }
+            }
+        }
         private const val CHANNEL_ID = "fake_gps_pro_channel"
         private const val NOTIFICATION_ID = 1001
         const val ACTION_START = "com.deploydulupulangnanti.fakegpspro.START"

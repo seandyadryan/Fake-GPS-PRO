@@ -29,26 +29,30 @@ class MainActivity : FlutterActivity() {
             try {
                 when (call.method) {
                     "getStatus" -> result.success(status())
+                    "setAppLanguage" -> {
+                        NotificationLanguage.set(this, call.argument<String>("languageTag"))
+                        result.success(true)
+                    }
                     "enableMockMode", "setMockLocation" -> {
                         val lat = call.argument<Double>("latitude")
                         val lng = call.argument<Double>("longitude")
                         if (lat == null || lng == null || !lat.isFinite() || !lng.isFinite() ||
                             lat !in -90.0..90.0 || lng !in -180.0..180.0) {
-                            result.error("INVALID_COORDINATES", "Koordinat tidak valid.", null)
+                            result.error("INVALID_COORDINATES", "invalidCoordinates", null)
                             return@setMethodCallHandler
                         }
                         val status = status()
                         val error = when {
-                            status["developerEnabled"] != true -> "Aktifkan Developer Mode terlebih dahulu."
-                            status["mockAppSelected"] != true -> "Pilih Fake GPS PRO sebagai aplikasi mock location."
-                            status["locationEnabled"] != true -> "Aktifkan layanan lokasi perangkat."
-                            status["locationPermissionGranted"] != true -> "Izinkan akses lokasi terlebih dahulu."
+                            status["developerEnabled"] != true -> "developerRequired"
+                            status["mockAppSelected"] != true -> "mockAppRequired"
+                            status["locationEnabled"] != true -> "locationRequired"
+                            status["locationPermissionGranted"] != true -> "permissionRequired"
                             else -> null
                         }
                         if (error != null) {
                             result.error("SETUP_REQUIRED", error, null)
                         } else if (call.method == "setMockLocation" && !MockLocationService.isActive) {
-                            result.error("NOT_RUNNING", "Mock location sudah berhenti.", null)
+                            result.error("NOT_RUNNING", "notRunning", null)
                         } else {
                             sendCommand(if (call.method == "enableMockMode") MockLocationService.ACTION_START
                                 else MockLocationService.ACTION_UPDATE, lat, lng, result)
@@ -74,7 +78,7 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
-                result.error("NATIVE_ERROR", e.message ?: "Operasi Android gagal.", null)
+                result.error("NATIVE_ERROR", "nativeError", null)
             }
         }
     }
@@ -105,7 +109,7 @@ class MainActivity : FlutterActivity() {
         val timeout = Runnable {
             if (!completed) {
                 completed = true
-                result.error("TIMEOUT", "Android belum mengonfirmasi. Periksa status lalu coba lagi.", null)
+                result.error("TIMEOUT", "operationTimeout", null)
             }
         }
         val receiver = object : ResultReceiver(handler) {
@@ -114,7 +118,7 @@ class MainActivity : FlutterActivity() {
                 completed = true
                 handler.removeCallbacks(timeout)
                 if (code == 0) result.success(true)
-                else result.error("SERVICE_ERROR", data?.getString("error") ?: "Mock location gagal.", null)
+                else result.error("SERVICE_ERROR", data?.getString("error") ?: "nativeError", null)
             }
         }
         val intent = Intent(this, MockLocationService::class.java).apply {
@@ -130,7 +134,7 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             completed = true
             handler.removeCallbacks(timeout)
-            result.error("SERVICE_ERROR", e.message, null)
+            result.error("SERVICE_ERROR", "nativeError", null)
         }
     }
 }

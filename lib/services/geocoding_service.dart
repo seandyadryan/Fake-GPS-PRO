@@ -16,12 +16,21 @@ class GeocodingResult {
 class GeocodingService {
   static const _baseUrl = 'https://nominatim.openstreetmap.org';
 
-  static Future<List<GeocodingResult>> search(String query) async {
+  static Future<List<GeocodingResult>> search(
+    String query, {
+    String languageCode = 'en',
+  }) async {
     final uri = Uri.parse(
       '$_baseUrl/search?q=${Uri.encodeComponent(query)}&format=json&limit=5',
     );
     final response = await http
-        .get(uri, headers: {'User-Agent': 'FakeGPSPro/1.0'})
+        .get(
+          uri,
+          headers: {
+            'User-Agent': 'FakeGPSPro/1.0',
+            'Accept-Language': languageCode,
+          },
+        )
         .timeout(const Duration(seconds: 12));
     if (response.statusCode != 200) {
       throw StateError('Search service returned ${response.statusCode}');

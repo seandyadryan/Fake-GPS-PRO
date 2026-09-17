@@ -1,3 +1,5 @@
+import '../l10n/l10n.dart';
+import '../models/location_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import '../providers/location_provider.dart';
 import '../providers/storage_provider.dart';
 import 'guide_screen.dart';
 import 'location_library_sheet.dart';
+import 'language_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   final TileProvider? tileProvider;
@@ -63,6 +66,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _syncCoordinates(pos);
   }
 
+  void _notice(LocationMessage? message) {
+    if (mounted && message != null) _message(message.localize(context.l10n));
+  }
+
   void _message(String text) {
     if (!mounted || text.isEmpty) return;
     ScaffoldMessenger.of(context)
@@ -72,10 +79,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       );
   }
 
-  void _guide() => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const GuideScreen()),
-  );
+  void _guide() =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => GuideScreen()));
 
   void _library() => showModalBottomSheet<void>(
     context: context,
@@ -91,7 +96,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _lngController.text,
     );
     if (pos == null) {
-      _message('Koordinat tidak valid. Latitude −90…90, longitude −180…180.');
+      _message(context.l10n.invalidCoordinates);
     }
     return pos;
   }
@@ -102,7 +107,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         .read(locationProvider.notifier)
         .startMock(_latController.text, _lngController.text);
     if (!mounted) return;
-    _message(message);
+    _notice(message);
     final setup = ref.read(locationProvider).setup;
     if (setup != null && setup.supported && !setup.ready) _guide();
   }
@@ -114,7 +119,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         .getCurrentLocation();
     if (!mounted) return;
     setState(() => _locating = false);
-    if (error != null) _message(error);
+    if (error != null) _notice(error);
   }
 
   Future<void> _save() async {
@@ -124,20 +129,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Simpan lokasi'),
+        title: Text(context.l10n.saveLocation),
         content: TextField(
           controller: controller,
           autofocus: true,
           maxLength: 80,
-          decoration: const InputDecoration(
-            labelText: 'Nama lokasi',
-            hintText: 'Contoh: Kantor Jakarta',
+          decoration: InputDecoration(
+            labelText: context.l10n.locationName,
+            hintText: context.l10n.locationNameHint,
           ),
         ),
         actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LanguageScreen()),
+            ),
+            icon: const Icon(Icons.language),
+            tooltip: context.l10n.language,
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
+            child: Text(context.l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -145,7 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 Navigator.pop(ctx, controller.text.trim());
               }
             },
-            child: const Text('Simpan'),
+            child: Text(context.l10n.save),
           ),
         ],
       ),
@@ -155,9 +168,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       await ref
           .read(storageProvider.notifier)
           .saveLocation(name, pos.latitude, pos.longitude);
-      _message('Lokasi disimpan.');
+      if (mounted) _message(context.l10n.locationSaved);
     } catch (_) {
-      _message('Lokasi gagal disimpan. Coba lagi.');
+      if (mounted) _message(context.l10n.saveFailed);
     }
   }
 
@@ -172,7 +185,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Scaffold(
       appBar: AppBar(
         leading: Padding(
-          padding: const EdgeInsets.all(10),
+          padding: EdgeInsets.all(10),
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: colors.primary,
@@ -186,7 +199,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
         ),
         titleSpacing: 0,
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -194,7 +207,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
             ),
             Text(
-              'Pilih titik. Atur lokasi.',
+              context.l10n.tagline,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
             ),
           ],
@@ -202,10 +217,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         actions: [
           IconButton(
             onPressed: _guide,
-            icon: const Icon(Icons.help_outline_rounded),
-            tooltip: 'Panduan & pengaturan',
+            icon: Icon(Icons.help_outline_rounded),
+            tooltip: context.l10n.guideAndSettings,
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
         ],
       ),
       body: SafeArea(
@@ -219,7 +234,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: _map(state),
             );
             final controls = SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(20),
               child: _controls(state),
             );
             if (landscape) {
@@ -227,7 +242,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 children: [
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 0, 12),
+                      padding: EdgeInsets.fromLTRB(12, 8, 0, 12),
                       child: map,
                     ),
                   ),
@@ -239,7 +254,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: [
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
                     child: map,
                   ),
                 ),
@@ -310,13 +325,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: const Color(0xFF0D9488).withValues(alpha: .20),
-                        border: Border.all(
-                          color: const Color(0xFF0D9488),
-                          width: 2,
-                        ),
+                        color: Color(0xFF0D9488).withValues(alpha: .20),
+                        border: Border.all(color: Color(0xFF0D9488), width: 2),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.gps_fixed,
                         color: Color(0xFF0D9488),
                         size: 28,
@@ -332,7 +344,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     Icons.location_pin,
                     color: colors.primary,
                     size: 48,
-                    shadows: const [
+                    shadows: [
                       Shadow(
                         color: Colors.black26,
                         blurRadius: 8,
@@ -345,10 +357,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ],
         ),
-        Positioned(
+        PositionedDirectional(
           top: 12,
-          left: 12,
-          right: 64,
+          start: 12,
+          end: 64,
           child: Material(
             color: colors.surface,
             elevation: 2,
@@ -357,17 +369,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               onTap: _library,
               borderRadius: BorderRadius.circular(16),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 13,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                 child: Row(
                   children: [
                     Icon(Icons.search, color: colors.primary, size: 21),
-                    const SizedBox(width: 10),
-                    const Expanded(
+                    SizedBox(width: 10),
+                    Expanded(
                       child: Text(
-                        'Cari tempat atau lokasi tersimpan',
+                        context.l10n.searchPlaces,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 13),
@@ -379,23 +388,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
         ),
-        Positioned(
+        PositionedDirectional(
           top: 12,
-          right: 10,
+          end: 10,
           child: Column(
             children: [
               _mapButton(
                 Icons.add,
-                'Perbesar peta',
+                context.l10n.zoomIn,
                 () => _mapController.move(
                   _mapController.camera.center,
                   (_mapController.camera.zoom + 1).clamp(2, 19),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               _mapButton(
                 Icons.remove,
-                'Perkecil peta',
+                context.l10n.zoomOut,
                 () => _mapController.move(
                   _mapController.camera.center,
                   (_mapController.camera.zoom - 1).clamp(2, 19),
@@ -404,26 +413,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ],
           ),
         ),
-        Positioned(
+        PositionedDirectional(
           bottom: 28,
-          right: 10,
+          end: 10,
           child: _mapButton(
             _locating ? Icons.hourglass_top : Icons.my_location,
-            'Lokasi perangkat',
+            context.l10n.deviceLocation,
             _locating ? null : _locate,
           ),
         ),
-        Positioned(
+        PositionedDirectional(
           bottom: 6,
-          left: 10,
+          start: 10,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: colors.surface.withValues(alpha: .94),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: const Text(
-              '© OpenStreetMap contributors',
+            child: Text(
+              context.l10n.mapAttribution,
               style: TextStyle(fontSize: 10),
             ),
           ),
@@ -456,33 +465,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: active
-                    ? const Color(0xFFCCFBF1)
-                    : colors.primaryContainer,
+                color: active ? Color(0xFFCCFBF1) : colors.primaryContainer,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
                 active ? Icons.gps_fixed : Icons.location_on_outlined,
-                color: active ? const Color(0xFF0F766E) : colors.primary,
+                color: active ? Color(0xFF0F766E) : colors.primary,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    active ? 'Mock location aktif' : 'Lokasi pilihan',
+                    active
+                        ? context.l10n.mockActiveTitle
+                        : context.l10n.selectedLocation,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   Text(
                     active
-                        ? 'Pilih titik baru lalu perbarui spoof'
-                        : 'Ketuk peta atau masukkan koordinat',
+                        ? context.l10n.updateLocationHint
+                        : context.l10n.selectLocationHint,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
@@ -495,20 +504,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               height: 9,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: active ? const Color(0xFF0D9488) : colors.outline,
+                color: active ? Color(0xFF0D9488) : colors.outline,
               ),
             ),
           ],
         ),
         if (active && state.activePosition != null)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: EdgeInsets.only(top: 8),
             child: Text(
-              'Aktif: ${state.activePosition!.latitude.toStringAsFixed(6)}, ${state.activePosition!.longitude.toStringAsFixed(6)}',
+              context.l10n.activeCoordinates(
+                '\u2066${state.activePosition!.latitude.toStringAsFixed(6)}, ${state.activePosition!.longitude.toStringAsFixed(6)}\u2069',
+              ),
               style: theme.textTheme.bodySmall?.copyWith(color: colors.primary),
             ),
           ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Material(
           color: ready
               ? colors.secondaryContainer
@@ -518,24 +529,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             onTap: _guide,
             borderRadius: BorderRadius.circular(12),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
                   Icon(ready ? Icons.verified_outlined : Icons.tune, size: 18),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       state.setup == null
-                          ? 'Memeriksa pengaturan perangkat…'
+                          ? context.l10n.checkingSettings
                           : state.setup?.supported == false
-                          ? 'Spoof tersedia di Android saja'
+                          ? context.l10n.androidOnly
                           : ready
-                          ? 'Perangkat siap • Pengaturan'
-                          : 'Siapkan Developer Mode & mock location',
-                      style: const TextStyle(fontSize: 12),
+                          ? context.l10n.deviceReady
+                          : context.l10n.setupRequired,
+                      style: TextStyle(fontSize: 12),
                     ),
                   ),
-                  const Icon(Icons.chevron_right, size: 18),
+                  Icon(Icons.chevron_right, size: 18),
                 ],
               ),
             ),
@@ -543,37 +554,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
         if (state.error != null)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: EdgeInsets.only(top: 8),
             child: Text(
-              state.error!,
+              state.error!.localize(context.l10n),
               style: TextStyle(color: colors.error, fontSize: 12),
             ),
           ),
         if (active || state.setup?.hasProviders == true) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _stopButton(state),
         ],
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: _coordinateField(
                 _latController,
-                'Latitude',
-                '−90 hingga 90',
+                context.l10n.latitude,
+                context.l10n.latitudeRange,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: _coordinateField(
                 _lngController,
-                'Longitude',
-                '−180 hingga 180',
+                context.l10n.longitude,
+                context.l10n.longitudeRange,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Row(
           children: [
             Expanded(
@@ -582,15 +593,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   final pos = _enteredPosition();
                   if (pos != null) _select(pos);
                 },
-                icon: const Icon(Icons.center_focus_strong, size: 18),
-                label: const Text('Lihat titik'),
+                icon: Icon(Icons.center_focus_strong, size: 18),
+                label: Text(context.l10n.viewPoint),
               ),
             ),
             Expanded(
               child: TextButton.icon(
                 onPressed: _save,
-                icon: const Icon(Icons.bookmark_border, size: 18),
-                label: const Text('Simpan'),
+                icon: Icon(Icons.bookmark_border, size: 18),
+                label: Text(context.l10n.save),
               ),
             ),
           ],
@@ -600,37 +611,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ? null
               : _start,
           icon: state.isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : Icon(active ? Icons.sync : Icons.play_arrow_rounded),
-          label: Text(active ? 'Perbarui spoof' : 'Mulai spoof'),
+          label: Text(
+            active ? context.l10n.updateMock : context.l10n.startMock,
+          ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         if (!active && state.setup?.hasProviders != true) _stopButton(state),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Theme(
           data: theme.copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
             tilePadding: EdgeInsets.zero,
-            childrenPadding: const EdgeInsets.only(bottom: 8),
+            childrenPadding: EdgeInsets.only(bottom: 8),
             leading: Icon(Icons.route_outlined, color: colors.primary),
-            title: const Text(
-              'Simulasi rute',
+            title: Text(
+              context.l10n.routeSimulation,
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
-              '${state.simulationPath.length} titik • ${state.isSimulating ? 'Sedang berjalan' : 'Interval 3 detik'}',
-              style: const TextStyle(fontSize: 12),
+              '${context.l10n.routePoints(state.simulationPath.length)} • ${state.isSimulating ? context.l10n.routeRunning : context.l10n.routeInterval}',
+              style: TextStyle(fontSize: 12),
             ),
             children: [
-              const Text(
-                'Pilih titik di peta, lalu tambahkan ke rute. Simulasi berpindah antartitik setiap 3 detik.',
+              Text(
+                context.l10n.routeDescription,
                 style: TextStyle(fontSize: 12),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -646,8 +659,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                 .read(locationProvider.notifier)
                                 .addSimulationPoint();
                           },
-                    icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-                    label: const Text('Tambah titik'),
+                    icon: Icon(Icons.add_location_alt_outlined, size: 18),
+                    label: Text(context.l10n.addPoint),
                   ),
                   FilledButton.tonalIcon(
                     onPressed: state.isLoading
@@ -660,20 +673,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               notifier.stopSimulation();
                             } else {
                               final error = notifier.startSimulation();
-                              if (error != null) _message(error);
+                              if (error != null) _notice(error);
                             }
                           },
                     icon: Icon(
                       state.isSimulating ? Icons.pause : Icons.play_arrow,
                       size: 18,
                     ),
-                    label: Text(state.isSimulating ? 'Stop rute' : 'Jalankan'),
+                    label: Text(
+                      state.isSimulating
+                          ? context.l10n.stopRoute
+                          : context.l10n.runRoute,
+                    ),
                   ),
                   TextButton(
                     onPressed: state.simulationPath.isEmpty || state.isLoading
                         ? null
                         : ref.read(locationProvider.notifier).clearRoute,
-                    child: const Text('Hapus rute'),
+                    child: Text(context.l10n.clearRoute),
                   ),
                 ],
               ),
@@ -690,12 +707,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             (!state.isMocking && state.setup?.hasProviders != true)
         ? null
         : () async =>
-              _message(await ref.read(locationProvider.notifier).stopMock()),
+              _notice(await ref.read(locationProvider.notifier).stopMock()),
     style: OutlinedButton.styleFrom(
       foregroundColor: Theme.of(context).colorScheme.error,
     ),
-    icon: const Icon(Icons.stop_circle_outlined),
-    label: const Text('Stop mock location'),
+    icon: Icon(Icons.stop_circle_outlined),
+    label: Text(context.l10n.stopMock),
   );
 
   Widget _coordinateField(
@@ -704,10 +721,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     String hint,
   ) => TextField(
     controller: controller,
-    keyboardType: const TextInputType.numberWithOptions(
-      decimal: true,
-      signed: true,
-    ),
+    textDirection: TextDirection.ltr,
+    keyboardType: TextInputType.numberWithOptions(decimal: true, signed: true),
     textInputAction: TextInputAction.done,
     onSubmitted: (_) {
       final pos = _enteredPosition();
