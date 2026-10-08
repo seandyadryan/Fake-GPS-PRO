@@ -1,10 +1,10 @@
+import '../config/app_config.dart';
 import '../l10n/l10n.dart';
 import '../models/location_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../providers/location_provider.dart';
 import '../providers/storage_provider.dart';
 import 'guide_screen.dart';
@@ -12,8 +12,8 @@ import 'location_library_sheet.dart';
 import 'language_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  final TileProvider? tileProvider;
-  const HomeScreen({super.key, this.tileProvider});
+  final Widget Function(BuildContext context, LocationState state)? mapBuilder;
+  const HomeScreen({super.key, this.mapBuilder});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -24,9 +24,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   final _latController = TextEditingController();
   final _lngController = TextEditingController();
   final _saveNameController = TextEditingController();
-  final _mapController = MapController();
+  GoogleMapController? _mapController;
   bool _mapReady = false;
   bool _locating = false;
+
+  bool get _apiKeyMissing =>
+      AppConfig.googleMapsApiKey.isEmpty ||
+      AppConfig.googleMapsApiKey == 'YOUR_GOOGLE_MAPS_API_KEY';
 
   @override
   void initState() {
@@ -51,14 +55,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _latController.dispose();
     _lngController.dispose();
     _saveNameController.dispose();
-    _mapController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
   void _syncCoordinates(LatLng pos) {
     _latController.text = pos.latitude.toStringAsFixed(6);
     _lngController.text = pos.longitude.toStringAsFixed(6);
-    if (_mapReady) _mapController.move(pos, _mapController.camera.zoom);
+    if (_mapReady && _mapController != null) {
+      _mapController!.animateCamera(CameraUpdate.newLatLng(pos));
+    }
   }
 
   void _select(LatLng pos) {
@@ -272,90 +278,86 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  Set<Marker> _buildMarkers(LocationState state, ColorScheme colors) {
+    final markers = <Marker>{};
+
+    markers.add(
+      Marker(
+        markerId: const MarkerId('selected_pin'),
+        position: state.currentPosition,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: InfoWindow(
+          title: context.l10n.selectedLocation,
+          snippet:
+              '${state.currentPosition.latitude.toStringAsFixed(6)}, ${state.currentPosition.longitude.toStringAsFixed(6)}',
+        ),
+      ),
+    );
+
+    if (state.isMocking && state.activePosition != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('active_mock'),
+          position: state.activePosition!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
+          infoWindow: InfoWindow(title: context.l10n.mockActiveTitle),
+        ),
+      );
+    }
+
+    for (var i = 0; i < state.simulationPath.length; i++) {
+      markers.add(
+        Marker(
+          markerId: MarkerId('sim_waypoint_$i'),
+          position: state.simulationPath[i],
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
+          infoWindow: InfoWindow(title: 'Waypoint ${i + 1}'),
+        ),
+      );
+    }
+
+    return markers;
+  }
+
+  Set<Polyline> _buildPolylines(LocationState state, ColorScheme colors) {
+    if (state.simulationPath.isEmpty) return const {};
+    return {
+      Polyline(
+        polylineId: const PolylineId('simulation_path'),
+        points: state.simulationPath,
+        width: 4,
+        color: colors.primary.withValues(alpha: .75),
+      ),
+    };
+  }
+
   Widget _map(LocationState state) {
     final colors = Theme.of(context).colorScheme;
+    if (widget.mapBuilder != null) {
+      return widget.mapBuilder!(context, state);
+    }
     return Stack(
       children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: state.currentPosition,
-            initialZoom: 15,
-            minZoom: 2,
-            maxZoom: 19,
-            onMapReady: () => _mapReady = true,
-            onTap: (_, position) => _select(position),
+        GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: state.currentPosition,
+            zoom: 15,
           ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              tileProvider: widget.tileProvider,
-              userAgentPackageName: 'com.deploydulupulangnanti.fake_gps_pro',
-            ),
-            if (state.simulationPath.isNotEmpty)
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: state.simulationPath,
-                    strokeWidth: 4,
-                    color: colors.primary.withValues(alpha: .65),
-                  ),
-                ],
-              ),
-            MarkerLayer(
-              markers: [
-                for (var i = 0; i < state.simulationPath.length; i++)
-                  Marker(
-                    point: state.simulationPath[i],
-                    width: 26,
-                    height: 26,
-                    child: CircleAvatar(
-                      backgroundColor: colors.primary,
-                      child: Text(
-                        '${i + 1}',
-                        style: TextStyle(color: colors.onPrimary, fontSize: 11),
-                      ),
-                    ),
-                  ),
-                if (state.isMocking && state.activePosition != null)
-                  Marker(
-                    point: state.activePosition!,
-                    width: 64,
-                    height: 64,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF0D9488).withValues(alpha: .20),
-                        border: Border.all(color: Color(0xFF0D9488), width: 2),
-                      ),
-                      child: Icon(
-                        Icons.gps_fixed,
-                        color: Color(0xFF0D9488),
-                        size: 28,
-                      ),
-                    ),
-                  ),
-                Marker(
-                  point: state.currentPosition,
-                  width: 44,
-                  height: 52,
-                  alignment: Alignment.topCenter,
-                  child: Icon(
-                    Icons.location_pin,
-                    color: colors.primary,
-                    size: 48,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black26,
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
+          minMaxZoomPreference: const MinMaxZoomPreference(2, 20),
+          onMapCreated: (controller) {
+            _mapController = controller;
+            _mapReady = true;
+          },
+          onTap: (pos) => _select(pos),
+          markers: _buildMarkers(state, colors),
+          polylines: _buildPolylines(state, colors),
+          zoomControlsEnabled: false,
+          myLocationButtonEnabled: false,
+          myLocationEnabled: false,
+          compassEnabled: true,
+          mapToolbarEnabled: false,
         ),
         PositionedDirectional(
           top: 12,
@@ -369,17 +371,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               onTap: _library,
               borderRadius: BorderRadius.circular(16),
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
                 child: Row(
                   children: [
                     Icon(Icons.search, color: colors.primary, size: 21),
-                    SizedBox(width: 10),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         context.l10n.searchPlaces,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 13),
+                        style: const TextStyle(fontSize: 13),
                       ),
                     ),
                   ],
@@ -396,19 +401,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               _mapButton(
                 Icons.add,
                 context.l10n.zoomIn,
-                () => _mapController.move(
-                  _mapController.camera.center,
-                  (_mapController.camera.zoom + 1).clamp(2, 19),
-                ),
+                () => _mapController?.animateCamera(CameraUpdate.zoomIn()),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               _mapButton(
                 Icons.remove,
                 context.l10n.zoomOut,
-                () => _mapController.move(
-                  _mapController.camera.center,
-                  (_mapController.camera.zoom - 1).clamp(2, 19),
-                ),
+                () => _mapController?.animateCamera(CameraUpdate.zoomOut()),
               ),
             ],
           ),
@@ -422,21 +421,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             _locating ? null : _locate,
           ),
         ),
-        PositionedDirectional(
-          bottom: 6,
-          start: 10,
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: colors.surface.withValues(alpha: .94),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              context.l10n.mapAttribution,
-              style: TextStyle(fontSize: 10),
+        if (_apiKeyMissing)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: Colors.amber.shade900.withValues(alpha: 0.92),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Google Maps API Key belum diatur. Jalankan setup_api_key.ps1 atau tambahkan di AndroidManifest.xml',
+                      style: TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }

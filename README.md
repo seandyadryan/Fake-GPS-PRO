@@ -21,7 +21,7 @@ Stop tidak menonaktifkan Developer Mode atau mengubah pilihan aplikasi mock di p
 
 ## Fitur
 
-- Peta OpenStreetMap, pencarian alamat Nominatim, input koordinat, zoom, dan lokasi perangkat.
+- Peta Google Maps, pencarian tempat, input koordinat, zoom, dan lokasi perangkat.
 - Simpan/hapus lokasi favorit dan riwayat 50 lokasi spoof terakhir, termasuk saat offline.
 - Rute berupa perpindahan antartitik setiap 3 detik (bukan navigasi atau interpolasi kecepatan).
   Tambahkan minimal dua titik dan mulai spoof dahulu. **Stop rute** menghentikan perpindahan;

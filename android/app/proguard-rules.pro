@@ -4,6 +4,7 @@
 -keep class io.flutter.view.** { *; }
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
+-keep class com.google.android.gms.maps.** { *; }
 
 # Flutter engine references Play Core classes for deferred components.
 # These classes are not required for normal APK/AAB builds, so ignore them

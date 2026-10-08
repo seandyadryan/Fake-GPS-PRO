@@ -2,7 +2,7 @@ import '../l10n/l10n.dart';
 import '../models/location_message.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../providers/storage_provider.dart';
 import '../services/geocoding_service.dart';
 

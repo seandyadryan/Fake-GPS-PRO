@@ -2,7 +2,7 @@ import 'package:fake_gps_pro/models/location_message.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fake_gps_pro/providers/location_provider.dart';
 import 'package:fake_gps_pro/services/mock_location_service.dart';

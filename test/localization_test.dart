@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fake_gps_pro/l10n/l10n.dart';
 import 'package:fake_gps_pro/l10n/languages.dart';
@@ -15,7 +15,6 @@ import 'package:fake_gps_pro/providers/location_provider.dart';
 import 'package:fake_gps_pro/screens/home_screen.dart';
 import 'package:fake_gps_pro/screens/language_screen.dart';
 import 'package:fake_gps_pro/services/mock_location_service.dart';
-import 'widget_test.dart' show BlankTiles;
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -211,7 +210,10 @@ void main() {
               locale: language.locale,
               localizationsDelegates: appLocalizationDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: HomeScreen(tileProvider: BlankTiles()),
+              home: HomeScreen(
+                mapBuilder: (context, state) =>
+                    const SizedBox(key: ValueKey('test_map')),
+              ),
             ),
           ),
         );

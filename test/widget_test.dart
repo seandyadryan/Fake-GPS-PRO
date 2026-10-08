@@ -7,23 +7,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fake_gps_pro/main.dart';
 import 'package:fake_gps_pro/screens/home_screen.dart';
 import 'package:fake_gps_pro/services/mock_location_service.dart';
-
-class BlankTiles extends TileProvider {
-  @override
-  ImageProvider getImage(
-    TileCoordinates coordinates,
-    TileLayer options,
-  ) => MemoryImage(
-    base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-    ),
-  );
-}
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -101,7 +88,10 @@ void main() {
           ),
           home: RepaintBoundary(
             key: const ValueKey('preview'),
-            child: HomeScreen(tileProvider: BlankTiles()),
+            child: HomeScreen(
+              mapBuilder: (context, state) =>
+                  const SizedBox(key: ValueKey('test_map')),
+            ),
           ),
         ),
       ),
